@@ -18,7 +18,7 @@ The Cauchy VM proides a generic means of communication between contracts and the
 
 For IMD and CAD specifically, the first four bytes of data stored at these base addresses will _always_ contain the 32-bit little endian value for the `size` of the respective data.  For example, when there is no IMD provided to a contract, there will still be four `0x00` bytes stored at the IMD base address.
 
-Attempts to access memory outside of these bounds will cause the VM to fault and halt execution.  That is to say, any memory accesses outside `4 + size` will cause an invalid memory access trap to occur (i.e. LoadOutOfMemory or StoreOutOfMemory for load and store instructions respectively).
+Attempts to access memory outside of these bounds will cause the VM to fault and halt execution.  That is to say, any memory accesses outside `4 + size - 1` will cause an invalid memory access trap to occur (i.e. `LoadOutOfMemory` or `StoreOutOfMemory` for load and store instructions respectively).
 
 
 ## Original Description Follows
