@@ -4,7 +4,7 @@
 
 ## Accessing Contract Data
 
-The Cauchy VM proides a generic means of communication between contracts and the VM via memory mapped addresses, similar to accessing peripherals in an embedded environment.  Specifically, the higher bits of all (32-bit) memory accesses are used to determine which type of data is being accessed.  As of [v0.1.1](https://github.com/TheRealBluesun/rust-wasm/releases/tag/v0.1.1), this mapping is as follows:
+The Cauchy VM proides a generic means of communication between contracts and the VM via memory mapped addresses, similar to accessing peripherals in an embedded environment.  Specifically, the higher bits of all (32-bit) memory accesses are used to determine which type of data is being accessed.  As of [v0.1.2](https://github.com/TheRealBluesun/rust-wasm/releases/tag/v0.1.2), this mapping is as follows:
 
 
 
