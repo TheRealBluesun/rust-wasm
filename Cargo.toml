@@ -6,6 +6,7 @@ build = "build.rs"
 edition = "2018"
 
 [dependencies]
+heapless = "*"
 
 [dev-dependencies]
 hexf-parse = "0.1.0"

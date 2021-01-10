@@ -1,7 +1,4 @@
-/// Provides the public Embedding interface
-/// Note: the API does not take a Store and returns the new Store as stated in
-/// the spec but takes a (possibly mutable) reference when needed
-extern crate core;
+#![no_std]
 
 #[macro_use]
 mod interpreter;
@@ -20,9 +17,12 @@ pub use runtime::{
 use interpreter::{eval_const_expr, Trap, TrapOrigin};
 use runtime::*;
 
-use std::collections::HashMap;
-use std::io::{Read, Seek};
-use std::rc::Rc;
+// use core::collections::HashMap;
+// use core::io::{Read, Seek};
+// use core::rc::Rc;
+
+use heapless::consts::*;
+use heapless::{FnvIndexMap, String, Vec};
 
 // Do not publish internal fields of the Store struct
 
@@ -66,13 +66,13 @@ pub fn init_store() -> Store {
         mems: MemInstStore::new(),
         globals: GlobalInstStore::new(),
 
-        types_map: HashMap::new(),
+        types_map: FnvIndexMap::<_, _, U16>::new(),
     }
 }
 
 /// Decode a binary module
-pub fn decode_module<R: Read + Seek>(reader: R) -> Result<ast::Module, Error> {
-    binary::decode(reader).map_err(|_| Error::DecodeModuleFailed)
+pub fn decode_module(bytes: &[u8]) -> Result<ast::Module, Error> {
+    binary::decode(bytes).map_err(|_| Error::DecodeModuleFailed)
 }
 
 /// Validate a module
@@ -222,8 +222,8 @@ pub fn type_func(store: &Store, funcaddr: FuncAddr) -> types::Func {
 pub fn invoke_func(
     store: &mut Store,
     funcaddr: FuncAddr,
-    args: Vec<values::Value>,
-) -> Result<Vec<values::Value>, Error> {
+    args: Vec<U32, values::Value>,
+) -> Result<Vec<U32, values::Value>, Error> {
     assert!(store.funcs.contains(funcaddr));
     let funcinst = &store.funcs[funcaddr];
     let functype = match *funcinst {
@@ -433,7 +433,7 @@ pub fn instantiate_module(
     store: &mut Store,
     module: ast::Module,
     extern_vals: &[ExternVal],
-) -> Result<Rc<ModuleInst>, Error> {
+) -> Result<ModuleInst, Error> {
     // fail if module is invalid
     if !valid::is_valid(&module) {
         return Err(Error::InvalidModule);
@@ -544,14 +544,14 @@ pub fn instantiate_module(
 fn allocate_and_init_module(
     store: &mut Store,
     module: ast::Module,
-    extern_funcs: Vec<FuncAddr>,
-    extern_tables: Vec<TableAddr>,
-    extern_memories: Vec<MemAddr>,
-    extern_globals: Vec<GlobalAddr>,
-    vals: Vec<values::Value>,
-    elem_offsets: Vec<usize>,
-    data_offsets: Vec<usize>,
-) -> Result<Rc<ModuleInst>, Error> {
+    extern_funcs: Vec<U32, FuncAddr>,
+    extern_tables: Vec<U32, TableAddr>,
+    extern_memories: Vec<U32, MemAddr>,
+    extern_globals: Vec<U32, GlobalAddr>,
+    vals: Vec<U32, values::Value>,
+    elem_offsets: Vec<U32, usize>,
+    data_offsets: Vec<U32, usize>,
+) -> Result<ModuleInst, Error> {
     let mut inst = ModuleInst::new();
 
     // init types
@@ -626,7 +626,6 @@ fn allocate_and_init_module(
 
     // now that the module is fully instantiated, we can initialize the functions and put
     // them into the store
-    let inst = Rc::new(inst);
     for func in module.funcs {
         let type_ = &inst.types[func.type_index as usize];
         let _ = store

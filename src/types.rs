@@ -1,3 +1,5 @@
+use heapless::{consts::*, Vec};
+
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Float {
     F32,
@@ -38,8 +40,8 @@ pub enum Elem {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Func {
-    pub args: Vec<Value>,
-    pub result: Vec<Value>,
+    pub args: Vec<U8, Value>,
+    pub result: Vec<U8, Value>,
 }
 
 // Note: Do not implement PartialEq on Limits, Limits comparison is specified and not straightforward

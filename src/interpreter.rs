@@ -3,8 +3,7 @@ use super::ops::{BitsOp, FloatDemoteOp, FloatOp, FloatPromoteOp, IntOp};
 use super::runtime::*;
 use super::types;
 use super::values::Value;
-
-use std::rc::Rc;
+use heapless::{consts::*, String, Vec};
 
 /// A struct storing the state of the current interpreted
 pub struct Interpreter {
@@ -49,7 +48,7 @@ type IntResult = Result<Control, Trap>;
 
 /// Stack frames tracks frame activation
 pub struct StackFrame {
-    module: Option<Rc<ModuleInst>>,
+    module: Option<ModuleInst>,
     stack_idx: usize, // The size of the stack before pushing args & locals for the Frame
     nested_levels: usize,
 }
@@ -58,7 +57,7 @@ pub struct StackFrame {
 const STACK_BUDGET: usize = 300;
 
 impl StackFrame {
-    pub fn new(module: Option<Rc<ModuleInst>>) -> StackFrame {
+    pub fn new(module: Option<ModuleInst>) -> StackFrame {
         StackFrame {
             module: module,
             stack_idx: 0,
@@ -66,7 +65,7 @@ impl StackFrame {
         }
     }
 
-    pub fn push(&self, module: Option<Rc<ModuleInst>>, stack_idx: usize) -> Option<StackFrame> {
+    pub fn push(&self, module: Option<ModuleInst>, stack_idx: usize) -> Option<StackFrame> {
         if self.nested_levels == 0 {
             return None;
         }

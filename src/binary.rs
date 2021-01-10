@@ -2,42 +2,32 @@ use super::ast::*;
 use super::ops::IntOp;
 use super::types;
 use super::values::Value;
-use std::io::Read;
-use std::{i32, i64, io};
+use core::{i32, i64};
+use heapless::{consts::*, String, Vec};
 
 const MAGIC: u32 = 0x6d736100;
 
 pub const VERSION: u32 = 1;
 
 /// Decode a Web Assembly module from the given `reader`
-pub fn decode<R: Read>(reader: R) -> Result<Module, DecodeError> {
-    Decoder {
-        reader: reader,
-        pos: 0,
-    }
-    .read_module()
+pub fn decode(bytes: &[u8]) -> Result<Module, DecodeError> {
+    Decoder { bytes, pos: 0 }.read_module()
 }
 
 #[derive(Debug)]
 pub enum DecodeError {
-    Io(io::Error),
+    Io,
     MalformedBinary,
-}
-
-impl From<io::Error> for DecodeError {
-    fn from(e: io::Error) -> Self {
-        DecodeError::Io(e)
-    }
 }
 
 type DecodeResult<T> = Result<T, DecodeError>;
 
-struct Decoder<R: Read> {
-    reader: R,
+struct Decoder<'a> {
+    bytes: &'a [u8],
     pos: usize,
 }
 
-impl<R: Read> Decoder<R> {
+impl Decoder<'_> {
     fn read_byte(&mut self) -> DecodeResult<u8> {
         let mut buf = [0];
         self.reader.read_exact(&mut buf)?;
@@ -163,9 +153,9 @@ impl<R: Read> Decoder<R> {
         Ok(self.read_u64()?.reinterpret())
     }
 
-    fn read_vec<T, F>(&mut self, read_elem: F) -> DecodeResult<Vec<T>>
+    fn read_vec<T, U, F>(&mut self, read_elem: F) -> DecodeResult<Vec<U, T>>
     where
-        F: Fn(&mut Decoder<R>) -> DecodeResult<T>,
+        F: Fn(&mut Decoder) -> DecodeResult<T>,
     {
         let n = self.read_vu32()?;
         let mut vec = Vec::with_capacity(n as usize);
@@ -175,7 +165,7 @@ impl<R: Read> Decoder<R> {
         Ok(vec)
     }
 
-    fn read_name(&mut self) -> DecodeResult<String> {
+    fn read_name(&mut self) -> DecodeResult<String<U32>> {
         let vec = self.read_vec(Decoder::read_byte)?;
         match String::from_utf8(vec) {
             Ok(s) => Ok(s),
@@ -187,12 +177,12 @@ impl<R: Read> Decoder<R> {
         decode_value_type(self.read_byte()?)
     }
 
-    fn read_block_type(&mut self) -> DecodeResult<Vec<types::Value>> {
-        Ok(match self.read_byte()? {
-            0x40 => vec![],
-            b => vec![decode_value_type(b)?],
-        })
-    }
+    // fn read_block_type(&mut self) -> DecodeResult<Vec<types::Value>> {
+    //     Ok(match self.read_byte()? {
+    //         0x40 => vec![],
+    //         b => vec![decode_value_type(b)?],
+    //     })
+    // }
 
     fn read_func_type(&mut self) -> DecodeResult<types::Func> {
         if self.read_byte()? != 0x60 {
@@ -561,7 +551,7 @@ impl<R: Read> Decoder<R> {
         }))
     }
 
-    fn read_instr_block_with_delim(&mut self) -> DecodeResult<(Vec<Instr>, PseudoInstr)> {
+    fn read_instr_block_with_delim(&mut self) -> DecodeResult<(Vec<U8, Instr>, PseudoInstr)> {
         let mut res = Vec::new();
         loop {
             match self.read_meta_instr()? {
@@ -571,7 +561,7 @@ impl<R: Read> Decoder<R> {
         }
     }
 
-    fn read_instr_block(&mut self) -> DecodeResult<Vec<Instr>> {
+    fn read_instr_block(&mut self) -> DecodeResult<Vec<U8, Instr>> {
         let (instrs, delim) = self.read_instr_block_with_delim()?;
         match delim {
             PseudoInstr::Else => Err(DecodeError::MalformedBinary),
@@ -579,7 +569,7 @@ impl<R: Read> Decoder<R> {
         }
     }
 
-    fn read_expr(&mut self) -> DecodeResult<Vec<Instr>> {
+    fn read_expr(&mut self) -> DecodeResult<Vec<U8, Instr>> {
         self.read_instr_block()
     }
 
@@ -627,7 +617,7 @@ impl<R: Read> Decoder<R> {
         Ok(())
     }
 
-    fn read_type_section(&mut self) -> DecodeResult<Vec<types::Func>> {
+    fn read_type_section(&mut self) -> DecodeResult<Vec<U8, types::Func>> {
         self.read_vec(Decoder::read_func_type)
     }
 
@@ -648,11 +638,11 @@ impl<R: Read> Decoder<R> {
         Ok(Import { module, name, desc })
     }
 
-    fn read_import_section(&mut self) -> DecodeResult<Vec<Import>> {
+    fn read_import_section(&mut self) -> DecodeResult<Vec<U8, Import>> {
         self.read_vec(Decoder::read_import)
     }
 
-    fn read_func_section(&mut self) -> DecodeResult<Vec<Index>> {
+    fn read_func_section(&mut self) -> DecodeResult<Vec<U8, Index>> {
         self.read_vec(Decoder::read_index)
     }
 
@@ -662,7 +652,7 @@ impl<R: Read> Decoder<R> {
         })
     }
 
-    fn read_table_section(&mut self) -> DecodeResult<Vec<Table>> {
+    fn read_table_section(&mut self) -> DecodeResult<Vec<U8, Table>> {
         self.read_vec(Decoder::read_table)
     }
 
@@ -672,7 +662,7 @@ impl<R: Read> Decoder<R> {
         })
     }
 
-    fn read_memory_section(&mut self) -> DecodeResult<Vec<Memory>> {
+    fn read_memory_section(&mut self) -> DecodeResult<Vec<U8, Memory>> {
         self.read_vec(Decoder::read_memory)
     }
 
@@ -682,7 +672,7 @@ impl<R: Read> Decoder<R> {
         Ok(Global { type_, value })
     }
 
-    fn read_global_section(&mut self) -> DecodeResult<Vec<Global>> {
+    fn read_global_section(&mut self) -> DecodeResult<Vec<U8, Global>> {
         self.read_vec(Decoder::read_global)
     }
 
@@ -702,7 +692,7 @@ impl<R: Read> Decoder<R> {
         Ok(Export { name, desc })
     }
 
-    fn read_export_section(&mut self) -> DecodeResult<Vec<Export>> {
+    fn read_export_section(&mut self) -> DecodeResult<Vec<U8, Export>> {
         self.read_vec(Decoder::read_export)
     }
 
@@ -712,7 +702,7 @@ impl<R: Read> Decoder<R> {
 
     fn read_segment<T, F>(&mut self, read_elem: F) -> DecodeResult<Segment<T>>
     where
-        F: Fn(&mut Decoder<R>) -> DecodeResult<T>,
+        F: Fn(&mut Decoder) -> DecodeResult<T>,
     {
         let index = self.read_index()?;
         let offset = self.read_expr()?;
@@ -728,7 +718,7 @@ impl<R: Read> Decoder<R> {
         self.read_segment(Decoder::read_index)
     }
 
-    fn read_elem_section(&mut self) -> DecodeResult<Vec<Segment<Index>>> {
+    fn read_elem_section(&mut self) -> DecodeResult<Vec<U8, Segment<Index>>> {
         self.read_vec(Decoder::read_elem)
     }
 
@@ -738,25 +728,25 @@ impl<R: Read> Decoder<R> {
         Ok((n, t))
     }
 
-    fn read_code(&mut self) -> DecodeResult<(Vec<types::Value>, Expr)> {
+    fn read_code(&mut self) -> DecodeResult<(Vec<U8, types::Value>, Expr)> {
         let _size = self.read_vu32()?;
         let local_decls = self.read_vec(Decoder::read_local_decl)?;
         let n_total: u64 = local_decls.iter().map(|&(n, _)| n as u64).sum();
-        if n_total > std::u32::MAX as u64 {
+        if n_total > core::u32::MAX as u64 {
             return Err(DecodeError::MalformedBinary);
         }
 
         let mut locals = Vec::new();
         locals.reserve(n_total as usize);
         for (n, t) in local_decls {
-            locals.extend(std::iter::repeat(t).take(n as usize));
+            locals.extend(core::iter::repeat(t).take(n as usize));
         }
 
         let body = self.read_expr()?;
         Ok((locals, body))
     }
 
-    fn read_code_section(&mut self) -> DecodeResult<Vec<(Vec<types::Value>, Expr)>> {
+    fn read_code_section(&mut self) -> DecodeResult<Vec<U8, (Vec<U8, types::Value>, Expr)>> {
         self.read_vec(Decoder::read_code)
     }
 
@@ -764,7 +754,7 @@ impl<R: Read> Decoder<R> {
         self.read_segment(Decoder::read_byte)
     }
 
-    fn read_data_section(&mut self) -> DecodeResult<Vec<Segment<u8>>> {
+    fn read_data_section(&mut self) -> DecodeResult<Vec<U8, Segment<u8>>> {
         self.read_vec(Decoder::read_data)
     }
 
@@ -794,7 +784,7 @@ impl<R: Read> Decoder<R> {
         let mut last_id = 0;
         loop {
             match self.read_byte() {
-                Err(DecodeError::Io(ref e)) if e.kind() == io::ErrorKind::UnexpectedEof => break,
+                // Err(DecodeError::Io(ref e)) if e.kind() == io::ErrorKind::UnexpectedEof => break,
                 Err(e) => return Err(e),
                 Ok(id) => {
                     if id != 0 && id <= last_id {

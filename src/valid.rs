@@ -4,8 +4,7 @@ use super::types;
 use super::types::Float::*;
 use super::types::Int::*;
 use super::types::Value::*;
-
-use std::collections::HashSet;
+use heapless::{consts::*, FnvIndexSet, Vec};
 
 static EMPTY_TYPE: [types::Value; 0] = [];
 
@@ -38,16 +37,16 @@ struct Frame<'a> {
 /// A typing context for a module
 struct ModContext<'a> {
     types: &'a [types::Func],
-    funcs: Vec<&'a types::Func>,
-    tables: Vec<&'a types::Table>,
-    memories: Vec<&'a types::Memory>,
-    globals: Vec<&'a types::Global>,
+    funcs: Vec<U24, &'a types::Func>,
+    tables: Vec<U24, &'a types::Table>,
+    memories: Vec<U24, &'a types::Memory>,
+    globals: Vec<U24, &'a types::Global>,
 }
 
 /// A typing context for a function
 struct FuncContext {
-    locals: Vec<types::Value>,
-    return_type: Vec<types::Value>,
+    locals: Vec<U24, types::Value>,
+    return_type: Vec<U24, types::Value>,
 }
 
 // Instead of indicating the validity of a component through a boolean, we use
@@ -63,7 +62,7 @@ fn require(b: bool) -> Option<()> {
     }
 }
 
-fn pop_operand(operands: &mut Vec<Operand>, frames: &Vec<Frame>) -> Option<Operand> {
+fn pop_operand<U>(operands: &mut Vec<U, Operand>, frames: &Vec<U, Frame>) -> Option<Operand> {
     debug_assert!(
         !frames.is_empty(),
         "validation of instructions should always happen in a frame"
@@ -83,9 +82,9 @@ fn pop_operand(operands: &mut Vec<Operand>, frames: &Vec<Frame>) -> Option<Opera
     }
 }
 
-fn pop_expected(
-    operands: &mut Vec<Operand>,
-    frames: &Vec<Frame>,
+fn pop_expected<U>(
+    operands: &mut Vec<U, Operand>,
+    frames: &Vec<U, Frame>,
     expected: Operand,
 ) -> Option<Operand> {
     let actual = pop_operand(operands, frames)?;
@@ -98,9 +97,9 @@ fn pop_expected(
     }
 }
 
-fn exact_step(
-    operands: &mut Vec<Operand>,
-    frames: &Vec<Frame>,
+fn exact_step<U>(
+    operands: &mut Vec<U, Operand>,
+    frames: &Vec<U, Frame>,
     from: &[types::Value],
     to: &[types::Value],
 ) -> Option<()> {
@@ -115,8 +114,8 @@ fn exact_step(
     Some(())
 }
 
-fn push_frame<'a>(
-    frames: &mut Vec<Frame<'a>>,
+fn push_frame<'a, U>(
+    frames: &mut Vec<U, Frame<'a>>,
     label_type: &'a [types::Value],
     end_type: &'a [types::Value],
     operands_len: usize,
@@ -129,7 +128,7 @@ fn push_frame<'a>(
     });
 }
 
-fn pop_frame(frames: &mut Vec<Frame>, operands: &mut Vec<Operand>) -> Option<()> {
+fn pop_frame<U>(frames: &mut Vec<U, Frame>, operands: &mut Vec<U, Operand>) -> Option<()> {
     debug_assert!(
         !frames.is_empty(),
         "validation of instructions should always happen in a frame"
@@ -144,7 +143,7 @@ fn pop_frame(frames: &mut Vec<Frame>, operands: &mut Vec<Operand>) -> Option<()>
     require(frame.init_len == operands.len() - end_type_len)
 }
 
-fn unreachable(frames: &mut Vec<Frame>, operands: &mut Vec<Operand>) {
+fn unreachable<U>(frames: &mut Vec<U, Frame>, operands: &mut Vec<U, Operand>) {
     debug_assert!(
         !frames.is_empty(),
         "validation of instructions should always happen in a frame"
@@ -155,7 +154,7 @@ fn unreachable(frames: &mut Vec<Frame>, operands: &mut Vec<Operand>) {
     curr_frame.unreachable = true;
 }
 
-fn get_label<'a>(frames: &Vec<Frame<'a>>, nesting_levels: u32) -> Option<&'a [types::Value]> {
+fn get_label<'a, U>(frames: &Vec<U, Frame<'a>>, nesting_levels: u32) -> Option<&'a [types::Value]> {
     debug_assert!(
         !frames.is_empty(),
         "validation of instructions should always happen in a frame"
@@ -192,11 +191,11 @@ fn check_const_expr(
 
 /// Check that the instruction sequence `instrs` is valid and has type `end_type`.
 /// The result is left on the stack.
-fn check_expr<'a>(
+fn check_expr<'a, U>(
     mod_ctx: &ModContext,
     func_ctx: &FuncContext,
-    operands: &mut Vec<Operand>,
-    frames: &mut Vec<Frame<'a>>,
+    operands: &mut Vec<U, Operand>,
+    frames: &mut Vec<U, Frame<'a>>,
     label_type: &'a [types::Value],
     end_type: &'a [types::Value],
     instrs: &'a [ast::Instr],
@@ -210,11 +209,11 @@ fn check_expr<'a>(
     pop_frame(frames, operands)
 }
 
-fn check_instr<'a>(
+fn check_instr<'a, U>(
     mod_ctx: &ModContext,
     func_ctx: &FuncContext,
-    operands: &mut Vec<Operand>,
-    frames: &mut Vec<Frame<'a>>,
+    operands: &mut Vec<U, Operand>,
+    frames: &mut Vec<U, Frame<'a>>,
     instr: &'a ast::Instr,
 ) -> Option<()> {
     use super::ast::Instr::*;
@@ -439,9 +438,9 @@ where
     Some(())
 }
 
-fn check_convert_op(
-    operands: &mut Vec<Operand>,
-    frames: &mut Vec<Frame>,
+fn check_convert_op<U>(
+    operands: &mut Vec<U, Operand>,
+    frames: &mut Vec<U, Frame>,
     convert_op: &ast::ConvertOp,
 ) -> Option<()> {
     use super::ast::ConvertOp::*;
@@ -625,7 +624,7 @@ fn check_module(module: &ast::Module) -> Option<()> {
     if let Some(ref func) = module.start {
         check_start(&mod_ctx, func)?;
     }
-    let mut unique_exports = HashSet::new();
+    let mut unique_exports = FnvIndexSet::<_, U16>::new();
     for export in &module.exports {
         check_export(&mod_ctx, export)?;
         require(!unique_exports.contains(&export.name))?;

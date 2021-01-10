@@ -1,5 +1,5 @@
-use std;
-use std::ops::*;
+use core;
+use core::ops::*;
 
 use core::ptr::copy_nonoverlapping;
 
@@ -266,7 +266,7 @@ macro_rules! impl_bits_ops {
         impl BitsOp for $ty {
             #[inline]
             fn from_bits(src: &[u8]) -> $ty {
-                assert!($size == std::mem::size_of::<$ty>());
+                assert!($size == core::mem::size_of::<$ty>());
                 assert!($size <= src.len());
                 let mut data: $ty = 0;
                 unsafe {
@@ -277,7 +277,7 @@ macro_rules! impl_bits_ops {
 
             #[inline]
             fn to_bits(self, dst: &mut [u8]) {
-                assert!($size == std::mem::size_of::<$ty>());
+                assert!($size == core::mem::size_of::<$ty>());
                 assert_eq!($size, dst.len());
 
                 unsafe {
@@ -345,37 +345,37 @@ pub trait FloatOp {
 }
 
 macro_rules! impl_convert_float_s {
-	($T:ty, $U:ty, $N:ident) => (
-		#[inline]
-		fn $N(self) -> Option<$U> {
-			if self.is_nan() {
-				None
-			} else {
-				if self >= -(<$U>::min_value() as $T) || self < <$U>::min_value() as $T {
-					None
-				} else {
-					Some(self.trunc() as $U)
-				}
-			}
-		}
-	)
+    ($T:ty, $U:ty, $N:ident) => {
+        #[inline]
+        fn $N(self) -> Option<$U> {
+            if self.is_nan() {
+                None
+            } else {
+                if self >= -(<$U>::min_value() as $T) || self < <$U>::min_value() as $T {
+                    None
+                } else {
+                    Some(self.trunc() as $U)
+                }
+            }
+        }
+    };
 }
 
 macro_rules! impl_convert_float_u {
-	($T:ty, $U:ty, $S:ty, $N:ident) => (
-		#[inline]
-		fn $N(self) -> Option<$U> {
-			if self.is_nan() {
-				None
-			} else {
-				if self >= -(<$S>::min_value() as $T) * 2.0 || self <= -1.0 {
-					None
-				} else {
-					Some(self.trunc() as $U)
-				}
-			}
-		}
-	)
+    ($T:ty, $U:ty, $S:ty, $N:ident) => {
+        #[inline]
+        fn $N(self) -> Option<$U> {
+            if self.is_nan() {
+                None
+            } else {
+                if self >= -(<$S>::min_value() as $T) * 2.0 || self <= -1.0 {
+                    None
+                } else {
+                    Some(self.trunc() as $U)
+                }
+            }
+        }
+    };
 }
 
 macro_rules! impl_float_op {
@@ -385,7 +385,7 @@ macro_rules! impl_float_op {
 
             #[inline]
             fn neg(self) -> $T {
-                std::ops::Neg::neg(self)
+                core::ops::Neg::neg(self)
             }
 
             #[inline]
@@ -538,8 +538,8 @@ macro_rules! impl_float_op {
     };
 }
 
-impl_float_op!(f32, u32, 32, std::f32::NAN);
-impl_float_op!(f64, u64, 64, std::f64::NAN);
+impl_float_op!(f32, u32, 32, core::f32::NAN);
+impl_float_op!(f64, u64, 64, core::f64::NAN);
 
 // Promote/Demote are only available in one way
 pub trait FloatPromoteOp {

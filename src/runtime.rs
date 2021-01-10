@@ -2,9 +2,8 @@ use super::ast;
 use super::types;
 use super::values;
 
-use std::collections::HashMap;
-use std::ops::{Index, IndexMut};
-use std::rc::Rc;
+use core::ops::{Index, IndexMut};
+use heapless::{consts::*, FnvIndexMap, String, Vec};
 
 // Use a map for types to answer type_{func, table, memory, global}
 #[derive(PartialEq, Eq, Hash)]
@@ -12,20 +11,20 @@ pub struct TypeKey {
     pub extern_val: ExternVal,
 }
 
-pub type TypeHashMap = HashMap<TypeKey, types::Extern>;
+pub type TypeHashMap = FnvIndexMap<U32, TypeKey, types::Extern>;
 
 // Instances of a Module/Func/Table/Memory/Global
 pub struct ModuleInst {
-    pub(crate) types: Vec<types::Func>,
-    pub(crate) func_addrs: Vec<FuncAddr>,
-    pub(crate) table_addrs: Vec<TableAddr>,
-    pub(crate) mem_addrs: Vec<MemAddr>,
-    pub(crate) global_addrs: Vec<GlobalAddr>,
-    pub(crate) exports: Vec<ExportInst>,
+    pub(crate) types: Vec<U32, types::Func>,
+    pub(crate) func_addrs: Vec<U32, FuncAddr>,
+    pub(crate) table_addrs: Vec<U32, TableAddr>,
+    pub(crate) mem_addrs: Vec<U32, MemAddr>,
+    pub(crate) global_addrs: Vec<U32, GlobalAddr>,
+    pub(crate) exports: Vec<U32, ExportInst>,
 }
 
 pub struct MemInst {
-    pub data: Vec<u8>,
+    pub data: Vec<U1024, u8>,
     pub max: Option<u32>,
 }
 
@@ -34,7 +33,7 @@ pub struct GlobalInst {
     pub mutable: bool,
 }
 
-pub type HostFunctionError = String;
+pub type HostFunctionError = String<U32>;
 pub type HostFunc =
     Box<dyn Fn(&[values::Value], &mut [values::Value]) -> Option<HostFunctionError>>;
 
@@ -43,21 +42,21 @@ pub struct HostFuncInst {
     pub hostcode: HostFunc,
 }
 
-pub struct ModuleFuncInst {
+pub struct ModuleFuncInst<'a> {
     pub type_: types::Func,
-    pub module: Rc<ModuleInst>,
+    pub module: &'a ModuleInst,
     pub code: ast::Func,
 }
 
-pub enum FuncInst {
-    Module(ModuleFuncInst),
+pub enum FuncInst<'a> {
+    Module(ModuleFuncInst<'a>),
     Host(HostFuncInst),
 }
 
 type FuncElem = Option<FuncAddr>;
 
 pub struct TableInst {
-    pub elem: Vec<FuncElem>,
+    pub elem: Vec<U32, FuncElem>,
     pub max: Option<u32>,
 }
 
@@ -66,10 +65,10 @@ pub struct ExportInst {
     pub value: ExternVal,
 }
 
-pub struct FuncInstStore(Vec<FuncInst>);
-pub struct MemInstStore(Vec<MemInst>);
-pub struct TableInstStore(Vec<TableInst>);
-pub struct GlobalInstStore(Vec<GlobalInst>);
+pub struct FuncInstStore(Vec<U32, FuncInst>);
+pub struct MemInstStore(Vec<U32, MemInst>);
+pub struct TableInstStore(Vec<U32, TableInst>);
+pub struct GlobalInstStore(Vec<U32, GlobalInst>);
 
 // Addrs and extern valus exported to the user
 type Addr = usize;
@@ -144,7 +143,7 @@ macro_rules! impl_inst_store {
     };
 }
 
-impl_inst_store!(FuncInstStore, FuncInst, FuncAddr);
+impl_inst_store!(FuncInstStore, FuncInst<'a>, FuncAddr);
 impl_inst_store!(TableInstStore, TableInst, TableAddr);
 impl_inst_store!(GlobalInstStore, GlobalInst, GlobalAddr);
 impl_inst_store!(MemInstStore, MemInst, MemAddr);
@@ -155,14 +154,14 @@ impl FuncInstStore {
         &mut self,
         types_map: &mut TypeHashMap,
         functype: &types::Func,
-        minst: &Rc<ModuleInst>,
+        minst: &ModuleInst,
         code: ast::Func,
     ) -> FuncAddr {
         self.alloc(
             types_map,
             FuncInst::Module(ModuleFuncInst {
                 type_: functype.clone(),
-                module: Rc::clone(minst),
+                module: minst,
                 code: code,
             }),
             functype,
@@ -210,7 +209,8 @@ impl MemInstStore {
         memtype: &types::Memory,
     ) -> MemAddr {
         self.0.push(MemInst {
-            data: vec![0; (memtype.limits.min as usize) * PAGE_SIZE],
+            // data: vec![0; (memtype.limits.min as usize) * PAGE_SIZE],
+            data: Vec::new(),
             max: memtype.limits.max,
         });
         let addr = MemAddr::new(self.len() - 1);
@@ -251,7 +251,8 @@ impl TableInstStore {
         tabletype: &types::Table,
     ) -> TableAddr {
         self.0.push(TableInst {
-            elem: vec![None; tabletype.limits.min as usize],
+            // elem: vec![None; tabletype.limits.min as usize],
+            elem: Vec::new(),
             max: tabletype.limits.max,
         });
         let addr = TableAddr::new(self.len() - 1);
