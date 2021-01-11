@@ -7,6 +7,8 @@ edition = "2018"
 
 [dependencies]
 heapless = "*"
+hash32 = "*"
+hash32-derive = "*"
 
 [dev-dependencies]
 hexf-parse = "0.1.0"

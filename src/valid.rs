@@ -4,7 +4,7 @@ use super::types;
 use super::types::Float::*;
 use super::types::Int::*;
 use super::types::Value::*;
-use heapless::{consts::*, FnvIndexSet, Vec};
+use heapless::{consts::*, ArrayLength, FnvIndexSet, Vec};
 
 static EMPTY_TYPE: [types::Value; 0] = [];
 
@@ -37,16 +37,16 @@ struct Frame<'a> {
 /// A typing context for a module
 struct ModContext<'a> {
     types: &'a [types::Func],
-    funcs: Vec<U24, &'a types::Func>,
-    tables: Vec<U24, &'a types::Table>,
-    memories: Vec<U24, &'a types::Memory>,
-    globals: Vec<U24, &'a types::Global>,
+    funcs: Vec<&'a types::Func, U24>,
+    tables: Vec<&'a types::Table, U24>,
+    memories: Vec<&'a types::Memory, U24>,
+    globals: Vec<&'a types::Global, U24>,
 }
 
 /// A typing context for a function
 struct FuncContext {
-    locals: Vec<U24, types::Value>,
-    return_type: Vec<U24, types::Value>,
+    locals: Vec<types::Value, U24>,
+    return_type: Vec<types::Value, U24>,
 }
 
 // Instead of indicating the validity of a component through a boolean, we use
@@ -62,7 +62,14 @@ fn require(b: bool) -> Option<()> {
     }
 }
 
-fn pop_operand<U>(operands: &mut Vec<U, Operand>, frames: &Vec<U, Frame>) -> Option<Operand> {
+fn pop_operand<'a, U, V>(
+    operands: &mut Vec<Operand, U>,
+    frames: &'a Vec<Frame<'a>, V>,
+) -> Option<Operand>
+where
+    U: ArrayLength<Operand>,
+    V: ArrayLength<Frame<'a>>,
+{
     debug_assert!(
         !frames.is_empty(),
         "validation of instructions should always happen in a frame"

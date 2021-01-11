@@ -3,28 +3,29 @@ use super::types;
 use super::values;
 
 use core::ops::{Index, IndexMut};
+use hash32::Hash;
 use heapless::{consts::*, FnvIndexMap, String, Vec};
 
 // Use a map for types to answer type_{func, table, memory, global}
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, hash32_derive::Hash32)]
 pub struct TypeKey {
     pub extern_val: ExternVal,
 }
 
-pub type TypeHashMap = FnvIndexMap<U32, TypeKey, types::Extern>;
+pub type TypeHashMap = FnvIndexMap<TypeKey, types::Extern, U32>;
 
 // Instances of a Module/Func/Table/Memory/Global
 pub struct ModuleInst {
-    pub(crate) types: Vec<U32, types::Func>,
-    pub(crate) func_addrs: Vec<U32, FuncAddr>,
-    pub(crate) table_addrs: Vec<U32, TableAddr>,
-    pub(crate) mem_addrs: Vec<U32, MemAddr>,
-    pub(crate) global_addrs: Vec<U32, GlobalAddr>,
-    pub(crate) exports: Vec<U32, ExportInst>,
+    pub(crate) types: Vec<types::Func, U32>,
+    pub(crate) func_addrs: Vec<FuncAddr, U32>,
+    pub(crate) table_addrs: Vec<TableAddr, U32>,
+    pub(crate) mem_addrs: Vec<MemAddr, U32>,
+    pub(crate) global_addrs: Vec<GlobalAddr, U32>,
+    pub(crate) exports: Vec<ExportInst, U32>,
 }
 
 pub struct MemInst {
-    pub data: Vec<U1024, u8>,
+    pub data: Vec<u8, U1024>,
     pub max: Option<u32>,
 }
 
@@ -35,7 +36,7 @@ pub struct GlobalInst {
 
 pub type HostFunctionError = String<U32>;
 pub type HostFunc =
-    Box<dyn Fn(&[values::Value], &mut [values::Value]) -> Option<HostFunctionError>>;
+    &'static dyn Fn(&[values::Value], &mut [values::Value]) -> Option<HostFunctionError>;
 
 pub struct HostFuncInst {
     pub type_: types::Func,
@@ -56,19 +57,19 @@ pub enum FuncInst<'a> {
 type FuncElem = Option<FuncAddr>;
 
 pub struct TableInst {
-    pub elem: Vec<U32, FuncElem>,
+    pub elem: Vec<FuncElem, U32>,
     pub max: Option<u32>,
 }
 
 pub struct ExportInst {
-    pub name: String,
+    pub name: String<U32>,
     pub value: ExternVal,
 }
 
-pub struct FuncInstStore(Vec<U32, FuncInst>);
-pub struct MemInstStore(Vec<U32, MemInst>);
-pub struct TableInstStore(Vec<U32, TableInst>);
-pub struct GlobalInstStore(Vec<U32, GlobalInst>);
+pub struct FuncInstStore<'a>(Vec<FuncInst<'a>, U32>);
+pub struct MemInstStore(Vec<MemInst, U32>);
+pub struct TableInstStore(Vec<TableInst, U32>);
+pub struct GlobalInstStore(Vec<GlobalInst, U32>);
 
 // Addrs and extern valus exported to the user
 type Addr = usize;
@@ -143,13 +144,45 @@ macro_rules! impl_inst_store {
     };
 }
 
-impl_inst_store!(FuncInstStore, FuncInst<'a>, FuncAddr);
+impl<'a> FuncInstStore<'a> {
+    pub fn new() -> Self {
+        Self { 0: Vec::new() }
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn contains(&self, addr: FuncAddr) -> bool {
+        self.0.len() >= addr.0
+    }
+}
+
+impl<'a> Index<FuncAddr> for TableInstStore {
+    fn index(&'a self, idx: FuncAddr) -> &FuncInst<'a> {
+        self.0.get(idx.0).unwrap()
+    }
+}
+
+impl<'a> IndexMut<FuncAddr> for TableInstStore {
+    fn index_mut(&mut self, idx: FuncAddr) -> &mut FuncInst<'a> {
+        self.0.get_mut(idx.0).unwrap()
+    }
+}
+
+impl FuncAddr {
+    pub fn new(addr: Addr) -> FuncAddr {
+        FuncAddr { 0: addr }
+    }
+}
+
+// impl_inst_store!(FuncInstStore, FuncInst<'a>, FuncAddr);
 impl_inst_store!(TableInstStore, TableInst, TableAddr);
 impl_inst_store!(GlobalInstStore, GlobalInst, GlobalAddr);
 impl_inst_store!(MemInstStore, MemInst, MemAddr);
 
 // Per trait functions
-impl FuncInstStore {
+impl<'a> FuncInstStore<'a> {
     pub(crate) fn alloc_module(
         &mut self,
         types_map: &mut TypeHashMap,

@@ -7,9 +7,9 @@ use heapless::{consts::*, String, Vec};
 
 /// A struct storing the state of the current interpreted
 pub struct Interpreter {
-    pub(crate) stack: Vec<Value>,
+    pub(crate) stack: Vec<Value, U4>,
     /// Buffer to collect return values of host functions
-    return_buffer: Vec<Value>,
+    return_buffer: Vec<Value, U4>,
 }
 
 #[derive(Debug, PartialEq)]

@@ -27,8 +27,8 @@ use heapless::{FnvIndexMap, String, Vec};
 // Do not publish internal fields of the Store struct
 
 // #[derive(Serialize)]
-pub struct Store {
-    funcs: FuncInstStore,
+pub struct Store<'a> {
+    funcs: FuncInstStore<'a>,
     tables: TableInstStore,
     mems: MemInstStore,
     globals: GlobalInstStore,
@@ -59,7 +59,7 @@ pub enum Error {
 }
 
 /// Return the empty store
-pub fn init_store() -> Store {
+pub fn init_store<'a>() -> Store<'a> {
     Store {
         funcs: FuncInstStore::new(),
         tables: TableInstStore::new(),

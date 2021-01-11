@@ -40,8 +40,8 @@ pub enum Elem {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Func {
-    pub args: Vec<U8, Value>,
-    pub result: Vec<U8, Value>,
+    pub args: Vec<Value, U8>,
+    pub result: Vec<Value, U8>,
 }
 
 // Note: Do not implement PartialEq on Limits, Limits comparison is specified and not straightforward

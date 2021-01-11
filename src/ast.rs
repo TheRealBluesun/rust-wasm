@@ -120,12 +120,12 @@ pub type StoreOp = MemOp<u32>;
 pub enum Instr {
     Unreachable,                                                  // trap unconditionally
     Nop,                                                          // do nothing
-    Block(Vec<U32, types::Value>, Vec<U32, Instr>),               // execute in sequence
-    Loop(Vec<U32, types::Value>, Vec<U32, Instr>),                // loop header
-    If(Vec<U32, types::Value>, Vec<U32, Instr>, Vec<U32, Instr>), // conditional
+    Block(Vec<types::Value, U32>, Vec<Instr, U32>),               // execute in sequence
+    Loop(Vec<types::Value, U32>, Vec<Instr, U32>),                // loop header
+    If(Vec<types::Value, U32>, Vec<Instr, U32>, Vec<Instr, U32>), // conditional
     Br(Index),                                                    // break to n-th surrounding label
     BrIf(Index),                                                  // conditional break
-    BrTable(Vec<U32, Index>, Index),                              // indexed break
+    BrTable(Vec<Index, U32>, Index),                              // indexed break
     Return,                                                       // break from function body
     Call(Index),                                                  // call function
     CallIndirect(Index),                                          // call function through table
@@ -151,20 +151,20 @@ pub enum Instr {
     Convert(ConvertOp),          // conversion
 }
 
-pub type Expr = Vec<U32, Instr>;
+pub type Expr = Vec<Instr, U32>;
 
 #[derive(Debug)]
 pub struct Module {
-    pub types: Vec<U32, types::Func>,
-    pub funcs: Vec<U32, Func>,
-    pub tables: Vec<U32, Table>,
-    pub memories: Vec<U32, Memory>,
-    pub globals: Vec<U32, Global>,
-    pub elems: Vec<U32, Segment<Index>>, // initial values for tables
-    pub data: Vec<U32, Segment<u8>>,     // initial values for memories
+    pub types: Vec<types::Func, U32>,
+    pub funcs: Vec<Func, U32>,
+    pub tables: Vec<Table, U32>,
+    pub memories: Vec<Memory, U32>,
+    pub globals: Vec<Global, U32>,
+    pub elems: Vec<Segment<Index>, U32>, // initial values for tables
+    pub data: Vec<Segment<u8>, U32>,     // initial values for memories
     pub start: Option<Index>,            // optionnal index to a start function
-    pub imports: Vec<U32, Import>,
-    pub exports: Vec<U32, Export>,
+    pub imports: Vec<Import, U32>,
+    pub exports: Vec<Export, U32>,
 }
 
 pub type Index = u32;
@@ -172,7 +172,7 @@ pub type Index = u32;
 #[derive(Debug)]
 pub struct Func {
     pub type_index: Index,
-    pub locals: Vec<U32, types::Value>,
+    pub locals: Vec<types::Value, U32>,
     pub body: Expr,
 }
 
@@ -196,7 +196,7 @@ pub struct Global {
 pub struct Segment<T> {
     pub index: Index,
     pub offset: Expr, // NB: Must be constant
-    pub init: Vec<U32, T>,
+    pub init: Vec<T, U32>,
 }
 
 #[derive(Debug)]
